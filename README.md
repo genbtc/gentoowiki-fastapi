@@ -37,10 +37,16 @@ _Endpoints_:
     "http://127.0.0.1:8000/login": "POST - login w/ username password (DISABLED)"
 
 
-VSCode recommended to use, launch.json included.
+*VSCode* recommended to use, launch.json included.
 
 
-_VENV_:
+_Python VENV_:
+
+The following command will install a set of packages from file requirements.txt. (freeze'd)
+
+``$ pip install -r requirements.txt``
+
+or
 
     $ pip install fastapi pymediawiki
     Requirement already satisfied: fastapi in ./lib/python3.10/site-packages (0.89.1)
