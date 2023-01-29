@@ -11,7 +11,7 @@
             "module": "uvicorn",
             "args": [
                 "--reload",
-                "fastapi-mediawiki-jupiter:app"
+                "fastapi-mediawiki-gentoo:app"
             ],
             "jinja": true,
             "justMyCode": true
