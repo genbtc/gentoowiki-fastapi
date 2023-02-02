@@ -2,6 +2,8 @@
 
 from fastapi import FastAPI, Form
 from typing import Union
+import mimetypes
+mimetypes.init()
 
 app = FastAPI()
 
@@ -12,14 +14,14 @@ def read_root():
 
 #Path Parameters dummy example, can turn into search (info@ https://fastapi.tiangolo.com/tutorial/path-params/)
 @app.get("/items/{item_id}")
-def read_item(item_id: int, q: Union[str, None] = None):
+def read_item(item_id: int, q: str|None = None):
     return {"item_id": item_id, "q": q}
 
 from mediawiki import MediaWiki
 
 wikigentoo = MediaWiki(url='http://wiki.gentoo.org/api.php')
 
-# Get Main Example
+#Get Main Example
 @app.get("/wiki")
 def read_root():
     p = wikigentoo.page('Main Page')
@@ -49,13 +51,13 @@ def read_root():
 # SEARCHTEST:
 # url = http://127.0.0.1:8448/wiki/searchtest/xxxxxxx?q=SomeText #(Q unused yet)
 @app.get("/wiki/searchtest/{page}")
-def read_item(page: str, q: Union[str, None] = None):
+def read_item(page: str, q: str|None = None):
     return {"page": page, "q": q}
 
 # SEARCH:
 # url = http://127.0.0.1:8448/wiki/search/Main%20Page?q=SomeText #(Q unused yet)
 @app.get("/wiki/search/{page}")
-def read_item(page: str, q: Union[str, None] = None):
+def read_item(page: str, q: str|None = None):
 #check database if it exists first
     if (page in db.data['wiki']):
         print("[200] /wiki/search/"+page+" FOUND in db")
@@ -92,9 +94,9 @@ from pydantic import BaseModel
 class CourseModel(BaseModel):
     name: str
     price: int
-    author: Union[str, None] = None
-    description: Union[str, None] = None
-    internalData: Union[str, None] = None
+    author: str|None = None
+    description: str|None = None
+    internalData: str|None = None
 
 # Pydantic Model can be directly populated by HTTP POST data, but the request body has to be given in JSON
 #NOTE:can not reach POST method directly via browser URL. error: ""GET /_coursesPYDANTICJSON HTTP/1.1" 405 Method Not Allowed"
@@ -127,13 +129,13 @@ def create_course(name: str = Form(),
                   description = description )
     return { "course": course}
 
-from fastapi.responses import HTMLResponse
+from fastapi.responses import Response,HTMLResponse
 # /coursesform =  COURSES FORM (FormData / HTML)
 # helper endpoint to call real endpoint /_courses
 # generate a little HTML webpage form to send <form> data to our own server (same-origin)
 # request body: name=NotBiberaoCertified&price=9001&author=someoneelse&description=notEmpty
 #URL= @ http://127.0.0.1:8448/coursesform
-@app.get("/coursesform", response_class=HTMLResponse)
+@app.get("/coursesform")
 def courses_form():
     htmlpage="""<html><head><title>Course List Form (FormData)</title></head>
 <form action="/_courses" method="POST">
@@ -156,7 +158,7 @@ def courses_form():
 # javascript Crafts request JSON from internal hardcoded data, (or data from wherever),
 # Prints data back in browser window when submit button is pushed
 #URL= @ http://127.0.0.1:8448/coursesjson
-@app.get("/coursesjson", response_class=HTMLResponse)
+@app.get("/coursesjson")
 def courses_json():
     htmlpage="""<html><head><title>Course List Form (JSON)</title></head>
     <body> You have reached the Biberao hotline. Automatically crafting a manual request.
@@ -203,12 +205,16 @@ def courses_json():
 
 @app.get("/")
 def show_endpoints():
-    return {"http://127.0.0.1:8448/hello": "GET - Hello World", 
+    return {"http://127.0.0.1:8448/hello": "GET - Hello World",
             "http://127.0.0.1:8448/wiki": "GET - Query Gentoo Wiki (Main Page)",
             "http://127.0.0.1:8448/wiki/search/{page}": "GET - search Gentoo Wiki for {page}",
             "http://127.0.0.1:8448/coursesform": "POST - course form (HTML form data)",
             "http://127.0.0.1:8448/coursesjson": "POST - course form (JSON javascript)",
-            "http://127.0.0.1:8448/login": "POST - login w/ username password (DISABLED)", 
+            "http://127.0.0.1:8448/login": "POST - login w/ username password (DISABLED)",
+            "http://127.0.0.1:8448/proc/cpuinfo": "GET - return procfiles",
+            "http://127.0.0.1:8448/github/{repoowner}/{reponame}/desc": "GET - return Github Description Title for any repo",
+            "http://127.0.0.1:8448/equery/g/{atom}": "GET - return package dependencies for any gentoo package",
+            "http://127.0.0.1:8448/equery/u/{atom}": "GET - return package USE Flags for any gentoo package",
     }
 
 #--------------------------- DATABASE.JSON ------------------------
@@ -249,28 +255,33 @@ db.data = db.data or { 'wiki': [] }
 import subprocess
 import sys
 
-#use python subprocess.run to run any system command and return the data
+# show how use python subprocess.run to run any system command and return the data
+# CPUINFO proc file
 @app.get("/proc/cpuinfo")
 def proc_cpuinfo():
     print("cat /proc/cpuinfo")
     result = subprocess.run(
         ["cat","/proc/cpuinfo"], capture_output=True, text=True
     )
-    print("stdout:", result.stdout)
-    return { "cpuinfo": result.stdout}
+    resultstr = result.stdout[:100000]    #cap to ~100KB to make sure no DoS
+    print("stdout cpuinfo:", resultstr)
+	# formatting as <pre> looks better than blank page
+    return HTMLResponse(content="<pre>"+resultstr+"</pre>", status_code=200)
 
 #Use a pre-determined list of files we can query in /proc and return the data
-import procfiles
+import allowedprocfiles
+# PROCFILES (ALLLL) - well, most. allowlisted in allowedprocfiles.py. still risky.
 @app.get("/proc/{procfile}")
-def proc_cpuinfo(procfile: str, q: Union[str, None] = None):
+def proc_cpuinfo(procfile: str, q: str|None = None):
     print("cat /proc/"+procfile)
     result = subprocess.run(
         ["cat","/proc/"+procfile], capture_output=True, text=True
     )
-    print("stdout:", result.stdout[:100000])	#cap to 100K to make sure no DoS
-    return { procfile: result.stdout[:100000]}
+    resultstr = result.stdout[:100000]
+    print("stdout "+procfile, resultstr)
+    return HTMLResponse(content="<pre>"+resultstr+"</pre>", status_code=200)
 
-#https://gist.github.com/genbtc/57fdc34d1bae507ab3815edb2dab4883
+#from my https://gist.github.com/genbtc/57fdc34d1bae507ab3815edb2dab4883
 #!/usr/bin/env python3
 #Copyright 2023 - genr8eofl @IRC/gentoo
 # github-beautiful.py - fetch GitHub repo "Description" (for many links at once)
@@ -280,9 +291,9 @@ from requests import ReadTimeout, ConnectTimeout, HTTPError, Timeout, Connection
 from bs4 import BeautifulSoup
 import sys
 
-#description
+# GITHUB show Description
 @app.get("/github/{repoowner}/{reponame}/desc")
-def github_repo_desc(repoowner: str, reponame: str, q: Union[str, None] = None):
+def github_repo_desc(repoowner: str, reponame: str, q: str|None = None):
     urlprefix="https://github.com/"
     repo = repoowner + "/" + reponame
     #Usage: Takes 1 argument, a filename containing github repos
@@ -304,3 +315,45 @@ def github_repo_desc(repoowner: str, reponame: str, q: Union[str, None] = None):
     # if line is empty, EOF is reached, done, end loop.
     if not repo:
         return {"Done": "" }
+
+# EQUERY G - Use gentoo's equery to return a list of dependency_Graph for a package
+@app.get("/equery/g/{atom}")
+async def equery_g(atom: str):
+    print("equery g "+atom)
+    result = subprocess.run(
+        ["equery","depgraph","-U",atom], capture_output=True, text=True
+    )
+    resultstr = result.stdout[:100000]    #cap to ~100KB
+    return HTMLResponse(defaultstatichtmlpage+resultstr+htmlend, media_type='text/html')
+
+#Show how to use the static files system.
+from fastapi.staticfiles import StaticFiles
+app.mount("/static", StaticFiles(directory="static"), name="static")
+# created a /static directory
+# and put Sakura.css (small CSS layout) in it.
+defaultstatichtmlpage="""<!DOCTYPE html>
+<html><head><title>FastAPI</title>
+<link rel="stylesheet" href="/static/sakura.css">
+</head>
+<body><pre>
+"""
+htmlend="</pre>200</body></html>"
+#This HTML file would probably rather also be included as a template file
+
+#Show how to use the jinja templating system
+from fastapi import Request
+from fastapi.templating import Jinja2Templates
+
+templates = Jinja2Templates(directory="templates")
+
+# EQUERY U - Use gentoo's equery to return a list of USE Flags for a package
+@app.get("/equery/u/{atom}")
+async def equery_u(request: Request, atom: str, response_class=HTMLResponse):
+    print("equery u "+atom)
+    result = subprocess.run(
+        ["equery","uses","-i",atom], capture_output=True, text=True
+    )
+    resultstr = result.stdout[:100000]
+	#these request params are mandatory, and " {{ pre }} " is inside the premade .html file to populate it
+    return templates.TemplateResponse("layout.html", {"request": request, "pre": resultstr})
+
