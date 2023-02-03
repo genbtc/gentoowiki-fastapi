@@ -7,10 +7,25 @@ mimetypes.init()
 
 app = FastAPI()
 
-#Hello World: url = http://127.0.0.1:8448/
+#SHOW ENDPOINTS (try to keep updated manually.)
+@app.get("/")
+def show_endpoints():
+    return {"http://127.0.0.1:8448/hello": "GET - Hello World!",
+            "http://127.0.0.1:8448/wiki": "GET - Show Gentoo Wiki Main Page",
+            "http://127.0.0.1:8448/wiki/search/{page}": "GET - Search Gentoo Wiki for {page}",
+            "http://127.0.0.1:8448/coursesform": "POST - course form (by HTML form data)",
+            "http://127.0.0.1:8448/coursesjson": "POST - course form (by JSON javascript)",
+            "http://127.0.0.1:8448/login": "POST - login w/ username password (DISABLED)",
+            "http://127.0.0.1:8448/proc/cpuinfo": "GET - CPUInfo procfiles",
+            "http://127.0.0.1:8448/github/{repoowner}/{reponame}/desc": "GET - Github Description Title for any repo",
+            "http://127.0.0.1:8448/equery/g/{atom}": "GET - Gentoo query package dependencies",
+            "http://127.0.0.1:8448/equery/u/{atom}": "GET - Gentoo query package USE Flags",
+    }
+
+#Hello World!: url = http://127.0.0.1:8448/hello
 @app.get("/hello")
 def read_root():
-    return {"Hello": "World"}
+    return {"Hello": "World!"}
 
 #Path Parameters dummy example, can turn into search (info@ https://fastapi.tiangolo.com/tutorial/path-params/)
 @app.get("/items/{item_id}")
@@ -21,7 +36,7 @@ from mediawiki import MediaWiki
 
 wikigentoo = MediaWiki(url='http://wiki.gentoo.org/api.php')
 
-#Get Main Example
+#Get Main Page of Wiki
 @app.get("/wiki")
 def read_root():
     p = wikigentoo.page('Main Page')
@@ -203,20 +218,6 @@ def courses_json():
     #    callResponse();
     return HTMLResponse(content=htmlpage, status_code=200)
 
-@app.get("/")
-def show_endpoints():
-    return {"http://127.0.0.1:8448/hello": "GET - Hello World",
-            "http://127.0.0.1:8448/wiki": "GET - Query Gentoo Wiki (Main Page)",
-            "http://127.0.0.1:8448/wiki/search/{page}": "GET - search Gentoo Wiki for {page}",
-            "http://127.0.0.1:8448/coursesform": "POST - course form (HTML form data)",
-            "http://127.0.0.1:8448/coursesjson": "POST - course form (JSON javascript)",
-            "http://127.0.0.1:8448/login": "POST - login w/ username password (DISABLED)",
-            "http://127.0.0.1:8448/proc/cpuinfo": "GET - return procfiles",
-            "http://127.0.0.1:8448/github/{repoowner}/{reponame}/desc": "GET - return Github Description Title for any repo",
-            "http://127.0.0.1:8448/equery/g/{atom}": "GET - return package dependencies for any gentoo package",
-            "http://127.0.0.1:8448/equery/u/{atom}": "GET - return package USE Flags for any gentoo package",
-    }
-
 #--------------------------- DATABASE.JSON ------------------------
 
 import json
@@ -265,7 +266,7 @@ def proc_cpuinfo():
     )
     resultstr = result.stdout[:100000]    #cap to ~100KB to make sure no DoS
     print("stdout cpuinfo:", resultstr)
-	# formatting as <pre> looks better than blank page
+    # formatting as <pre> looks better than blank page
     return HTMLResponse(content="<pre>"+resultstr+"</pre>", status_code=200)
 
 #Use a pre-determined list of files we can query in /proc and return the data
@@ -273,6 +274,7 @@ import allowedprocfiles
 # PROCFILES (ALLLL) - well, most. allowlisted in allowedprocfiles.py. still risky.
 @app.get("/proc/{procfile}")
 def proc_cpuinfo(procfile: str, q: str|None = None):
+    if (len(procfile)>50): return { "Error": "Blocked" }
     print("cat /proc/"+procfile)
     result = subprocess.run(
         ["cat","/proc/"+procfile], capture_output=True, text=True
@@ -354,6 +356,16 @@ async def equery_u(request: Request, atom: str, response_class=HTMLResponse):
         ["equery","uses","-i",atom], capture_output=True, text=True
     )
     resultstr = result.stdout[:100000]
-	#these request params are mandatory, and " {{ pre }} " is inside the premade .html file to populate it
+    #these request params are mandatory, and " {{ pre }} " is inside the premade .html file to populate it
     return templates.TemplateResponse("layout.html", {"request": request, "pre": resultstr})
 
+#use this for password keyfile encryption later
+import unlock_api_key
+import encrypt_api_key
+
+#probably best to start using a main function
+def main(prog_name, *argv):
+	print("Not implemented. launch w. uvicorn to run")
+
+if __name__ == '__main__':
+    sys.exit(main(*sys.argv))
